@@ -65,7 +65,7 @@ describe("[Challenge] Climber", function () {
   it("Execution", async function () {
     /** CODE YOUR SOLUTION HERE */
 
-    // the timelock checks whether the operation is valid only after it has executed the operation. hence we can execute an operation which will grant the timelock the propose role and then schedule the current operation and also zero the waiting delay. after this we can schedule and execute an operation to upgrade the vault contract. but trying to schedule this operation from the timelock itself would not be possible as the dataelement would have to contain itself. hence we will schedule from an outer contract
+    // the timelock checks whether the operation is valid only after it has executed the operation. hence we can execute an operation which will grant the timelock the propose role and then schedule the current operation and also zero the waiting delay. after this we can schedule and execute an operation to upgrade the vault contract. but trying to schedule this operation from the timelock itself would not be possible as the dataelement would have to contain itself. hence we will schedule from an outer contract`
 
     const attacker = await (
       await ethers.getContractFactory("ClimberAttacker", player)

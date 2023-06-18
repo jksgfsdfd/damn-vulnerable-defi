@@ -2,9 +2,13 @@
 pragma solidity ^0.8.4;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "hardhat/console.sol";
 
 interface IGnosisSafeProxyFactory {
-    function createProxy(address masterCopy, bytes calldata data) external returns (address);
+    function createProxy(
+        address masterCopy,
+        bytes calldata data
+    ) external returns (address);
 }
 
 /**
@@ -16,7 +20,8 @@ interface IGnosisSafeProxyFactory {
  */
 contract WalletDeployer {
     // Addresses of the Gnosis Safe Factory and Master Copy v1.1.1
-    IGnosisSafeProxyFactory public constant fact = IGnosisSafeProxyFactory(0x76E2cFc1F5Fa8F6a5b3fC4c8F4788F0116861F9B);
+    IGnosisSafeProxyFactory public constant fact =
+        IGnosisSafeProxyFactory(0x76E2cFc1F5Fa8F6a5b3fC4c8F4788F0116861F9B);
     address public constant copy = 0x34CfAC646f301356fAa8B21e94227e3583Fe3F5F;
 
     uint256 public constant pay = 1 ether;
@@ -27,7 +32,9 @@ contract WalletDeployer {
 
     error Boom();
 
-    constructor(address _gem) { gem = _gem; }
+    constructor(address _gem) {
+        gem = _gem;
+    }
 
     /**
      * @notice Allows the chief to set an authorizer contract.
@@ -48,24 +55,87 @@ contract WalletDeployer {
      */
     function drop(bytes memory wat) external returns (address aim) {
         aim = fact.createProxy(copy, wat);
+        console.log("created proxy");
         if (mom != address(0) && !can(msg.sender, aim)) {
             revert Boom();
         }
+        console.log("failed can check");
         IERC20(gem).transfer(msg.sender, pay);
     }
 
     // TODO(0xth3g450pt1m1z0r) put some comments
     function can(address u, address a) public view returns (bool) {
-        assembly { 
+        console.log("inside can");
+        bool extcodeCheckError;
+        assembly {
             let m := sload(0)
-            if iszero(extcodesize(m)) {return(0, 0)}
+            if iszero(extcodesize(m)) {
+                extcodeCheckError := true
+            }
+        }
+        if (extcodeCheckError) {
+            console.log("ext code check error");
+        }
+
+        bool staticCallError;
+        assembly {
+            let m := sload(0)
+            if iszero(extcodesize(m)) {
+                return(0, 0)
+            }
             let p := mload(0x40)
-            mstore(0x40,add(p,0x44))
-            mstore(p,shl(0xe0,0x4538c4eb))
-            mstore(add(p,0x04),u)
-            mstore(add(p,0x24),a)
-            if iszero(staticcall(gas(),m,p,0x44,p,0x20)) {return(0,0)}
-            if and(not(iszero(returndatasize())), iszero(mload(p))) {return(0,0)}
+            mstore(0x40, add(p, 0x44))
+            mstore(p, shl(0xe0, 0x4538c4eb))
+            mstore(add(p, 0x04), u)
+            mstore(add(p, 0x24), a)
+            if iszero(staticcall(gas(), m, p, 0x44, p, 0x20)) {
+                staticCallError := true
+            }
+        }
+        if (staticCallError) {
+            console.log("static call check error");
+        }
+
+        bool returndataError;
+
+        assembly {
+            let m := sload(0)
+            if iszero(extcodesize(m)) {
+                return(0, 0)
+            }
+            let p := mload(0x40)
+            mstore(0x40, add(p, 0x44))
+            mstore(p, shl(0xe0, 0x4538c4eb))
+            mstore(add(p, 0x04), u)
+            mstore(add(p, 0x24), a)
+            if iszero(staticcall(gas(), m, p, 0x44, p, 0x20)) {
+                return(0, 0)
+            }
+            if and(not(iszero(returndatasize())), iszero(mload(p))) {
+                returndataError := true
+            }
+        }
+
+        if (returndataError) {
+            console.log("return data error");
+        }
+
+        assembly {
+            let m := sload(0)
+            if iszero(extcodesize(m)) {
+                return(0, 0)
+            }
+            let p := mload(0x40)
+            mstore(0x40, add(p, 0x44))
+            mstore(p, shl(0xe0, 0x4538c4eb))
+            mstore(add(p, 0x04), u)
+            mstore(add(p, 0x24), a)
+            if iszero(staticcall(gas(), m, p, 0x44, p, 0x20)) {
+                return(0, 0)
+            }
+            if and(not(iszero(returndatasize())), iszero(mload(p))) {
+                return(0, 0)
+            }
         }
         return true;
     }
